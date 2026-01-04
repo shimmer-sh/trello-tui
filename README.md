@@ -37,7 +37,7 @@ bun install -g github:shimmer-sh/trello-tui
 
 1. Go to https://trello.com/power-ups/admin/
 2. Create a new Power-Up (or select existing)
-3. Copy your **API Key** and generate a **Token**
+3. Copy your **API Key** and click the **Token** link to generate a token
 
 ### 2. Set environment variables
 
@@ -46,6 +46,12 @@ Add to your `~/.zshrc` or `~/.bashrc`:
 ```bash
 export TRELLO_API_KEY='your-api-key'
 export TRELLO_TOKEN='your-token'
+```
+
+Then source your config:
+
+```bash
+source ~/.zshrc  # or source ~/.bashrc
 ```
 
 ### 3. Run in any project
