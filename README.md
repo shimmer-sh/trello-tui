@@ -35,9 +35,9 @@ bun install -g github:shimmer-sh/trello-tui
 
 ### 1. Get Trello credentials
 
-1. Go to https://trello.com/app-key
-2. Copy your **API Key**
-3. Click the **Token** link to generate a token
+1. Go to https://trello.com/power-ups/admin/
+2. Create a new Power-Up (or select existing)
+3. Copy your **API Key** and generate a **Token**
 
 ### 2. Set environment variables
 
