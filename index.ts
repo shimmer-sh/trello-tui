@@ -21,7 +21,7 @@ import {
   type KeyEvent,
 } from "@opentui/core"
 import { getBoardId, setBoard } from "./config"
-import type { NormalizedCard, TrelloList, TrelloBoard } from "./trello"
+import type { NormalizedCard, TrelloList, TrelloBoard, TrelloAttachment } from "./trello"
 
 const colors = {
   bg: "#1e1e2e",
@@ -69,6 +69,26 @@ async function runMainApp(boardId: string, lists: TrelloList[], cards: Normalize
   let moveModalOverlay: BoxRenderable | null = null
   let isAnalyzing = false
   let analyzeProcess: ReturnType<typeof Bun.spawn> | null = null
+  let selectedAttachmentIndex = 0
+  let lastSelectedCardId: string | null = null
+
+  // Helper to check if attachment is an image
+  function isImageAttachment(attachment: TrelloAttachment): boolean {
+    return attachment.mimeType?.startsWith("image/") || false
+  }
+
+  // Helper to get image attachments for a card
+  function getImageAttachments(card: NormalizedCard): TrelloAttachment[] {
+    return card.attachments?.filter(isImageAttachment) || []
+  }
+
+  // Platform-specific open command
+  function getOpenCommand(): string {
+    const platform = process.platform
+    if (platform === "darwin") return "open"
+    if (platform === "win32") return "start"
+    return "xdg-open"  // Linux and others
+  }
 
   // Fuzzy match - checks if all query chars appear in order
   function fuzzyMatch(query: string, text: string): boolean {
@@ -268,7 +288,7 @@ async function runMainApp(boardId: string, lists: TrelloList[], cards: Normalize
     footerText = new TextRenderable(renderer, {
       id: "footer-text-" + Date.now(),
       content: activePanel === "details"
-        ? t`${fg(colors.textDim)("↑↓")} navigate  ${fg(colors.textDim)("←→")} panels  ${fg(colors.textDim)("a")} analyze  ${fg(colors.textDim)("m")} move  ${fg(colors.textDim)("o")} open  ${fg(colors.textDim)("q")} quit`
+        ? t`${fg(colors.textDim)("↑↓")} attachments  ${fg(colors.textDim)("←→")} panels  ${fg(colors.textDim)("i")} view image  ${fg(colors.textDim)("a")} analyze  ${fg(colors.textDim)("m")} move  ${fg(colors.textDim)("o")} open  ${fg(colors.textDim)("q")} quit`
         : t`${fg(colors.textDim)("↑↓")} navigate  ${fg(colors.textDim)("←→")} panels  ${fg(colors.textDim)("tab")} column  ${fg(colors.textDim)("^f")} search  ${fg(colors.textDim)("o")} open  ${fg(colors.textDim)("q")} quit`,
     })
     footer.add(footerText)
@@ -305,7 +325,14 @@ async function runMainApp(boardId: string, lists: TrelloList[], cards: Normalize
         content: t`${fg(colors.textDim)("No tickets")}`,
       })
       rightPanel.add(detailText)
+      lastSelectedCardId = null
       return
+    }
+
+    // Reset attachment selection when switching cards
+    if (card.id !== lastSelectedCardId) {
+      selectedAttachmentIndex = 0
+      lastSelectedCardId = card.id
     }
 
     // Title - bold and yellow with marker
@@ -398,6 +425,70 @@ async function runMainApp(boardId: string, lists: TrelloList[], cards: Normalize
           rightPanel.add(moreEl)
           detailElements.push(moreEl)
         }
+      }
+    }
+
+    // Attachments
+    if (card.attachments?.length) {
+      const imageAttachments = getImageAttachments(card)
+      const otherAttachments = card.attachments.filter(a => !isImageAttachment(a))
+
+      // Reset attachment index if out of bounds
+      if (selectedAttachmentIndex >= card.attachments.length) {
+        selectedAttachmentIndex = 0
+      }
+
+      const attachLabel = new TextRenderable(renderer, {
+        id: "detail-attach-label-" + Date.now(),
+        content: t`\n${fg(colors.textDim)("Attachments")} ${fg(colors.textDim)(`(${card.attachments.length})`)}`,
+      })
+      rightPanel.add(attachLabel)
+      detailElements.push(attachLabel)
+
+      // Show image attachments with selection indicator
+      if (imageAttachments.length > 0) {
+        const imgLabel = new TextRenderable(renderer, {
+          id: "detail-img-label-" + Date.now(),
+          content: t`${fg(colors.blue)(`  📷 Images (${imageAttachments.length}):`)}`,
+        })
+        rightPanel.add(imgLabel)
+        detailElements.push(imgLabel)
+
+        imageAttachments.forEach((attachment, idx) => {
+          const globalIdx = card.attachments!.indexOf(attachment)
+          const isSelected = activePanel === "details" && globalIdx === selectedAttachmentIndex
+          const prefix = isSelected ? fg(colors.yellow)("▸ ") : "  "
+          const nameColor = isSelected ? colors.yellow : colors.text
+          const attachEl = new TextRenderable(renderer, {
+            id: `detail-img-${attachment.id}-${Date.now()}`,
+            content: t`  ${prefix}${fg(nameColor)(attachment.name)}${isSelected ? fg(colors.textDim)(" [i: open]") : ""}`,
+          })
+          rightPanel.add(attachEl)
+          detailElements.push(attachEl)
+        })
+      }
+
+      // Show other attachments
+      if (otherAttachments.length > 0) {
+        const otherLabel = new TextRenderable(renderer, {
+          id: "detail-other-label-" + Date.now(),
+          content: t`${fg(colors.blue)(`  📎 Files (${otherAttachments.length}):`)}`,
+        })
+        rightPanel.add(otherLabel)
+        detailElements.push(otherLabel)
+
+        otherAttachments.forEach((attachment, idx) => {
+          const globalIdx = card.attachments!.indexOf(attachment)
+          const isSelected = activePanel === "details" && globalIdx === selectedAttachmentIndex
+          const prefix = isSelected ? fg(colors.yellow)("▸ ") : "  "
+          const nameColor = isSelected ? colors.yellow : colors.text
+          const attachEl = new TextRenderable(renderer, {
+            id: `detail-attach-${attachment.id}-${Date.now()}`,
+            content: t`  ${prefix}${fg(nameColor)(attachment.name)}${isSelected ? fg(colors.textDim)(" [i: open]") : ""}`,
+          })
+          rightPanel.add(attachEl)
+          detailElements.push(attachEl)
+        })
       }
     }
 
@@ -555,12 +646,43 @@ async function runMainApp(boardId: string, lists: TrelloList[], cards: Normalize
     isAnalyzing = true
     updateDetails() // Show analyzing state
 
-    const prompt = `You are investigating an issue/task from a Trello board for a software project.
+    const imageAttachments = getImageAttachments(card)
+    const tempFiles: string[] = []
+
+    try {
+      // Download image attachments to temp files
+      if (imageAttachments.length > 0) {
+        const os = await import("os")
+        const fs = await import("fs")
+        const path = await import("path")
+        const tmpDir = os.tmpdir()
+
+        for (const attachment of imageAttachments) {
+          try {
+            const response = await fetch(attachment.url)
+            if (response.ok) {
+              const buffer = await response.arrayBuffer()
+              const ext = attachment.name.split('.').pop() || 'png'
+              const tmpPath = path.join(tmpDir, `trello-attachment-${attachment.id}.${ext}`)
+              fs.writeFileSync(tmpPath, Buffer.from(buffer))
+              tempFiles.push(tmpPath)
+            }
+          } catch {
+            // Skip failed downloads
+          }
+        }
+      }
+
+      const imageContext = imageAttachments.length > 0
+        ? `\n\n**Attached Images (${imageAttachments.length}):**\n${imageAttachments.map(a => `- ${a.name}`).join('\n')}\n\nIMPORTANT: Analyze the attached images carefully. They may contain screenshots, error messages, UI mockups, or other visual information relevant to this task.`
+        : ""
+
+      const prompt = `You are investigating an issue/task from a Trello board for a software project.
 
 **Task:** ${card.name}
 
 **Current Description:**
-${card.description || "(no description)"}
+${card.description || "(no description)"}${imageContext}
 
 Investigate this in the codebase and provide your findings.
 
@@ -569,11 +691,17 @@ IMPORTANT: Your response will be posted directly to a Trello card description. F
 - Keep it concise - Trello descriptions shouldn't be too long
 - Use clear sections like "Findings", "Relevant Files", "Questions"
 - For file paths, use inline code formatting
-- Be actionable and specific`
+- Be actionable and specific
+${imageAttachments.length > 0 ? "- Include insights from the attached images if relevant" : ""}`
 
-    try {
+      // Build command with image files
+      const claudeArgs = ["-p", prompt]
+      for (const tmpFile of tempFiles) {
+        claudeArgs.push(tmpFile)
+      }
+
       // Use Bun's subprocess API
-      const proc = Bun.spawn(["claude", "-p", prompt], {
+      const proc = Bun.spawn(["claude", ...claudeArgs], {
         cwd: process.cwd(),
         stdout: "pipe",
         stderr: "pipe",
@@ -622,6 +750,14 @@ ${result.trim()}
     } catch (err) {
       // Show error in description temporarily
       card.description = `${card.description || ""}\n\n---\n⚠️ AI Analysis failed: ${err instanceof Error ? err.message : "Unknown error"}`
+    } finally {
+      // Clean up temp files
+      try {
+        const fs = await import("fs")
+        for (const tmpFile of tempFiles) {
+          try { fs.unlinkSync(tmpFile) } catch {}
+        }
+      } catch {}
     }
 
     isAnalyzing = false
@@ -773,7 +909,7 @@ ${result.trim()}
     if (key.name === "o" && !searchInput.focused) {
       const card = filteredCards[ticketSelect.getSelectedIndex()]
       if (card?.url) {
-        import("child_process").then(cp => cp.exec(`open "${card.url}"`))
+        import("child_process").then(cp => cp.exec(`${getOpenCommand()} "${card.url}"`))
       }
       return
     }
@@ -787,6 +923,36 @@ ${result.trim()}
     // 'a' to analyze with AI (in details panel)
     if (key.name === "a" && activePanel === "details" && !isAnalyzing) {
       analyzeWithAI()
+      return
+    }
+
+    // 'i' to open selected attachment (in details panel)
+    if (key.name === "i" && activePanel === "details") {
+      const card = filteredCards[ticketSelect.getSelectedIndex()]
+      if (card?.attachments?.length) {
+        const attachment = card.attachments[selectedAttachmentIndex]
+        if (attachment?.url) {
+          import("child_process").then(cp => cp.exec(`${getOpenCommand()} "${attachment.url}"`))
+        }
+      }
+      return
+    }
+
+    // Up/Down or j/k to navigate attachments (in details panel)
+    if ((key.name === "up" || key.name === "k") && activePanel === "details") {
+      const card = filteredCards[ticketSelect.getSelectedIndex()]
+      if (card?.attachments?.length) {
+        selectedAttachmentIndex = Math.max(0, selectedAttachmentIndex - 1)
+        updateDetails()
+      }
+      return
+    }
+    if ((key.name === "down" || key.name === "j") && activePanel === "details") {
+      const card = filteredCards[ticketSelect.getSelectedIndex()]
+      if (card?.attachments?.length) {
+        selectedAttachmentIndex = Math.min(card.attachments.length - 1, selectedAttachmentIndex + 1)
+        updateDetails()
+      }
       return
     }
 
