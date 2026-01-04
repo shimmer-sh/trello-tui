@@ -1,0 +1,19 @@
+{
+  "name": "trello-tui",
+  "version": "0.0.1",
+  "description": "Terminal-based Trello board viewer with AI analysis",
+  "type": "module",
+  "bin": {
+    "trello-tui": "./index.ts"
+  },
+  "scripts": {
+    "start": "bun run index.ts"
+  },
+  "dependencies": {
+    "@opentui/core": "^0.1.67"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "typescript": "^5"
+  }
+}
