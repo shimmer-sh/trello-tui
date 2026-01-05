@@ -677,22 +677,7 @@ async function runMainApp(boardId: string, lists: TrelloList[], cards: Normalize
         ? `\n\n**Attached Images (${imageAttachments.length}):**\n${imageAttachments.map(a => `- ${a.name}`).join('\n')}\n\nIMPORTANT: Analyze the attached images carefully. They may contain screenshots, error messages, UI mockups, or other visual information relevant to this task.`
         : ""
 
-      const prompt = `You are investigating an issue/task from a Trello board for a software project.
-
-**Task:** ${card.name}
-
-**Current Description:**
-${card.description || "(no description)"}${imageContext}
-
-Investigate this in the codebase and provide your findings.
-
-IMPORTANT: Your response will be posted directly to a Trello card description. Format it nicely for Trello:
-- Use markdown that renders well in Trello (headers, bullet points, code blocks)
-- Keep it concise - Trello descriptions shouldn't be too long
-- Use clear sections like "Findings", "Relevant Files", "Questions"
-- For file paths, use inline code formatting
-- Be actionable and specific
-${imageAttachments.length > 0 ? "- Include insights from the attached images if relevant" : ""}`
+      const prompt = `Describe what you see in the attached image(s). Be specific about any UI elements, text, errors, or visual details you can observe.`
 
       // Build command with image files
       const claudeArgs = ["-p", prompt]
