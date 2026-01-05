@@ -21,31 +21,8 @@ import {
   type KeyEvent,
 } from "@opentui/core"
 import { getBoardId, setBoard } from "./config"
+import { fuzzyMatch, getFilteredCards as filterCards, colors, labelColors } from "./utils"
 import type { NormalizedCard, TrelloList, TrelloBoard } from "./trello"
-
-const colors = {
-  bg: "#1e1e2e",
-  text: "#cdd6f4",
-  textDim: "#6c7086",
-  border: "#45475a",
-  borderFocus: "#f9e2af",
-  yellow: "#f9e2af",
-  green: "#a6e3a1",
-  blue: "#89b4fa",
-}
-
-const labelColors: Record<string, string> = {
-  green: "#61bd4f",
-  yellow: "#f2d600",
-  orange: "#ff9f1a",
-  red: "#eb5a46",
-  purple: "#c377e0",
-  blue: "#0079bf",
-  sky: "#00c2e0",
-  lime: "#51e898",
-  pink: "#ff78cb",
-  black: "#344563",
-}
 
 // Create renderer
 const renderer = await createCliRenderer({ useMouse: false })
@@ -70,24 +47,8 @@ async function runMainApp(boardId: string, lists: TrelloList[], cards: Normalize
   let isAnalyzing = false
   let analyzeProcess: ReturnType<typeof Bun.spawn> | null = null
 
-  // Fuzzy match - checks if all query chars appear in order
-  function fuzzyMatch(query: string, text: string): boolean {
-    if (!query) return true
-    const lowerQuery = query.toLowerCase()
-    const lowerText = text.toLowerCase()
-    let qi = 0
-    for (let i = 0; i < lowerText.length && qi < lowerQuery.length; i++) {
-      if (lowerText[i] === lowerQuery[qi]) qi++
-    }
-    return qi === lowerQuery.length
-  }
-
   function getFilteredCards(): NormalizedCard[] {
-    const currentList = lists[currentListIndex]
-    if (!currentList) return []
-    return cards
-      .filter(card => card.listId === currentList.id)
-      .filter(card => fuzzyMatch(searchQuery, card.name))
+    return filterCards(cards, lists, currentListIndex, searchQuery)
   }
 
   let filteredCards = getFilteredCards()
