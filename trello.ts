@@ -19,6 +19,15 @@ interface TrelloChecklist {
   checkItems: { id: string; name: string; state: "complete" | "incomplete" }[]
 }
 
+export interface TrelloAttachment {
+  id: string
+  name: string
+  url: string
+  mimeType: string
+  isUpload: boolean
+  previews?: { url: string; width: number; height: number }[]
+}
+
 interface TrelloCard {
   id: string
   name: string
@@ -29,6 +38,7 @@ interface TrelloCard {
   url: string
   members?: TrelloMember[]
   checklists?: TrelloChecklist[]
+  attachments?: TrelloAttachment[]
 }
 
 export interface TrelloList {
@@ -52,6 +62,7 @@ export interface NormalizedCard {
   url: string
   members: TrelloMember[]
   checklists: TrelloChecklist[]
+  attachments: TrelloAttachment[]
 }
 
 const TRELLO_API_BASE = "https://api.trello.com/1"
@@ -101,8 +112,8 @@ export class TrelloClient {
   // Get cards for a board or list
   async getCards(boardId: string, listId?: string): Promise<NormalizedCard[]> {
     const endpoint = listId
-      ? `/lists/${listId}/cards?fields=id,name,desc,idList,due,url,labels&members=true&member_fields=id,fullName,username,initials&checklists=all`
-      : `/boards/${boardId}/cards?fields=id,name,desc,idList,due,url,labels&members=true&member_fields=id,fullName,username,initials&checklists=all`
+      ? `/lists/${listId}/cards?fields=id,name,desc,idList,due,url,labels&members=true&member_fields=id,fullName,username,initials&checklists=all&attachments=true&attachment_fields=id,name,url,mimeType,isUpload,previews`
+      : `/boards/${boardId}/cards?fields=id,name,desc,idList,due,url,labels&members=true&member_fields=id,fullName,username,initials&checklists=all&attachments=true&attachment_fields=id,name,url,mimeType,isUpload,previews`
 
     const cards = await this.fetch<TrelloCard[]>(endpoint)
 
@@ -116,6 +127,7 @@ export class TrelloClient {
       url: card.url,
       members: card.members || [],
       checklists: card.checklists || [],
+      attachments: card.attachments || [],
     }))
   }
 
